@@ -4,7 +4,7 @@ from typing import Optional
 class UserCreate(BaseModel):
     username: str
     password: str
-    role: str = "annotator"          # ← добавили роль
+    role: str = "annotator"         
 
 class Token(BaseModel):
     access_token: str
