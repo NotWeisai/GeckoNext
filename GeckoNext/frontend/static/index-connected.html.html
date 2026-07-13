@@ -842,7 +842,7 @@
                 
                 // Если верификатор — просим только задачи на проверке
                 if (currentRole === 'verifier') {
-                    url += '?status=На проверке'; // ← если бэкенд поддерживает фильтр
+                    url += '?status=На проверке'; // если бэкенд поддерживает фильтр
                 }
 
                 const tasksData = await apiRequest(url);
@@ -959,7 +959,6 @@
 
                 addAuditLog('Задача открыта', taskId);
 
-                // После renderSegmentsList() и selectSegment добавь:
                 if (currentRole === 'verifier') {
                     disableEditingForVerifier();
                 } else {
@@ -1156,7 +1155,7 @@
             document.getElementById('main-content').classList.add('hidden');
             document.getElementById('login-section').classList.remove('hidden');
             
-            // ← ВАЖНО: возвращаем кнопку регистрации
+            // возвращаем кнопку регистрации
             showRegisterButton();
 
             document.getElementById('current-role').textContent = 'Не выбрана';
@@ -1204,16 +1203,11 @@
                 try {
                     const me = await apiRequest('http://127.0.0.1:8000/api/auth/me');
                     currentRole = me.role || 'annotator';
-                    applyUserRole(currentRole);           // ← теперь applyUserRole сам решает, что показывать
+                    applyUserRole(currentRole);           //  теперь applyUserRole сам решает, что показывать
                 } catch(e) {
                     currentRole = 'annotator';
                     applyUserRole(currentRole);
                 }
-
-                // Убираем эти строки (они больше не нужны, applyUserRole сам управляет):
-                // document.getElementById('task-list-section').classList.add('hidden');
-                // document.getElementById('workspace').classList.add('hidden');
-                // loadMyTasks();
 
             } catch (e) {
                 errorEl.textContent = e.message;
@@ -1262,7 +1256,7 @@
             authToken = localStorage.getItem('authToken');
 
             if (authToken) {
-                // Показываем загрузку (опционально — можно добавить спиннер)
+                // Показываем загрузку
                 await getAndApplyRole();
             } else {
                 // Нет токена — показываем логин + кнопку регистрации
@@ -1353,7 +1347,7 @@
         }
     } 
 
-    // ==================== ПРИМЕНЕНИЕ РОЛИ (УЛУЧШЕННАЯ ВЕРСИЯ) ====================
+    // ==================== ПРИМЕНЕНИЕ РОЛИ ====================
     function applyUserRole(role) {
         currentRole = role;
         document.getElementById('current-role').textContent = 
