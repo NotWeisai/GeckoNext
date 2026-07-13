@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16
+    container_name: gecko_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: gecko_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend                  # путь к папке с бэкендом
+    container_name: gecko_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/gecko_db
+      # добавь другие переменные, если есть
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads        # чтобы файлы сохранялись
+
+volumes:
+  postgres_data:

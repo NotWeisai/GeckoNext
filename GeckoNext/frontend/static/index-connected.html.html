@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gecko Next MVP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
+    
+    <style>
+        .wavesurfer-container { height: 220px; background-color: #f1f5f9; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; position: relative; }
+        .segment-card { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .segment-card.active { border-color: #3b82f6; background-color: #eff6ff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+        .dropzone { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .dropzone.dragover { border-color: #3b82f6; background-color: #eff6ff; transform: scale(1.01); }
+        .audit-log { font-family: ui-monospace, monospace; font-size: 12px; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <div class="max-w-7xl mx-auto p-6">
+        <!-- Верхняя панель -->
+        <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-3xl shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl">G</div>
+                <h1 class="text-3xl font-bold text-blue-600">Gecko Next</h1>
+            </div>
+            <div id="save-status" class="text-sm font-medium px-4 py-2 rounded-2xl text-green-600"></div>
+            
+            <div class="flex items-center gap-4">
+                <div id="role-info" class="text-sm font-medium px-4 py-2 bg-gray-100 rounded-2xl">
+                    Роль: <span id="current-role" class="font-semibold text-blue-600">Не выбрана</span>
+                </div>
+                <button onclick="logout()" 
+                        class="px-5 py-2.5 text-sm bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl transition-all font-medium">
+                    Выйти
+                </button>
+            </div>
+        </div>
+
+         <!-- Навигация -->
+        <div class="mb-4 flex gap-3">
+            <button onclick="showTaskList()" class="px-6 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 rounded-2xl text-sm font-medium flex items-center gap-2">📋 Мои задачи</button>
+            <button onclick="showWorkspace()" class="px-6 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 rounded-2xl text-sm font-medium">🛠 Рабочее место</button>
+        </div>
+
+        <!-- Форма логина -->
+        <div id="login-section" class="bg-white p-10 rounded-3xl shadow-sm mb-8 max-w-md mx-auto">
+            <h2 class="text-3xl font-semibold mb-8 text-center text-gray-800">Вход в систему</h2>
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Логин</label>
+                    <input id="login-username" type="text" value="test" 
+                        class="w-full border border-gray-300 rounded-2xl px-4 py-3 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Пароль</label>
+                    <input id="login-password" type="password" value="123" 
+                        class="w-full border border-gray-300 rounded-2xl px-4 py-3 focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <button onclick="login()" 
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-3xl font-semibold text-lg">
+                    Войти
+                </button>
+                
+                <p id="login-error" class="text-red-500 text-center text-sm hidden"></p>
+            </div>
+        </div>
+
+        <!-- Кнопка регистрации -->
+        <div id="register-link-container" class="mt-6 text-center">
+            <button id="register-btn" onclick="showRegisterModal()" 
+                    class="text-blue-600 hover:underline text-sm font-medium">
+                Нет аккаунта? Зарегистрироваться
+            </button>
+        </div>
+
+       <!-- Модальное окно регистрации -->
+        <div id="register-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+            <div class="bg-white p-8 rounded-3xl w-full max-w-md mx-4">
+                <h3 class="text-2xl font-bold mb-6 text-center">Регистрация</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Логин</label>
+                        <input id="reg-username" type="text" class="w-full border rounded-2xl px-4 py-3">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Пароль</label>
+                        <input id="reg-password" type="password" class="w-full border rounded-2xl px-4 py-3">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Роль</label>
+                        <select id="reg-role" class="w-full border rounded-2xl px-4 py-3">
+                            <option value="annotator">Разметчик</option>
+                            <option value="verifier">Верификатор</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button onclick="hideRegisterModal()" 
+                            class="flex-1 py-3 border border-gray-300 rounded-2xl hover:bg-gray-50">Отмена</button>
+                    <button onclick="registerUser()" 
+                            class="flex-1 py-3 bg-blue-600 text-white rounded-2xl font-medium">Зарегистрироваться</button>
+                </div>
+                
+                <p id="register-error" class="text-red-500 text-center text-sm mt-3 hidden"></p>
+            </div>
+        </div>
+
+        <!-- Основной контент -->
+        <div id="main-content" class="hidden">
+            
+            <!-- Загрузка -->
+            <div id="upload-section" class="bg-white p-8 rounded-3xl shadow-sm mb-8">
+                <h2 class="text-2xl font-semibold mb-6">Загрузка новой задачи</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div id="audio-dropzone" class="dropzone border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-3xl p-8 text-center cursor-pointer group" onclick="document.getElementById('audio-input').click()">
+                        <div class="text-6xl mb-4 group-hover:scale-110 transition-transform">🎵</div>
+                        <div class="font-semibold text-xl text-gray-800">Аудиофайл</div>
+                        <div class="text-gray-500 mt-1">MP3, WAV, OGG</div>
+                        <input type="file" id="audio-input" accept="audio/*" class="hidden" onchange="handleFileSelect('audio')">
+                        <button type="button" class="mt-6 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-2xl transition-all shadow-sm">Выбрать аудио</button>
+                        <div id="audio-selected" class="hidden mt-6">
+                            <div class="inline-flex items-center gap-3 bg-green-50 text-green-700 px-5 py-2 rounded-2xl text-sm font-medium">
+                                <span id="audio-filename" class="max-w-[220px] truncate"></span>
+                                <button onclick="clearFileSelection('audio'); event.stopImmediatePropagation()" class="text-green-600 hover:text-red-500 text-lg leading-none">✕</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="json-dropzone" class="dropzone border-2 border-dashed border-gray-300 hover:border-purple-400 rounded-3xl p-8 text-center cursor-pointer group" onclick="document.getElementById('json-input').click()">
+                        <div class="text-6xl mb-4 group-hover:scale-110 transition-transform">📋</div>
+                        <div class="font-semibold text-xl text-gray-800">JSON предразметка</div>
+                        <div class="text-gray-500 mt-1">Формат Gecko</div>
+                        <input type="file" id="json-input" accept=".json" class="hidden" onchange="handleFileSelect('json')">
+                        <button type="button" class="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-2xl transition-all shadow-sm">Выбрать JSON</button>
+                        <div id="json-selected" class="hidden mt-6">
+                            <div class="inline-flex items-center gap-3 bg-green-50 text-green-700 px-5 py-2 rounded-2xl text-sm font-medium">
+                                <span id="json-filename" class="max-w-[220px] truncate"></span>
+                                <button onclick="clearFileSelection('json'); event.stopImmediatePropagation()" class="text-green-600 hover:text-red-500 text-lg leading-none">✕</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="uploadFiles()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 rounded-3xl font-semibold text-lg shadow-lg transition-all active:scale-[0.985]">
+                    🚀 Загрузить и начать разметку
+                </button>
+            </div>
+
+           <!-- Список задач -->
+            <div id="task-list-section" class="hidden bg-white p-6 rounded-3xl shadow mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-3">
+                        <h3 class="font-semibold text-lg">Мои задачи</h3>
+                        <button onclick="showUploadSection()" 
+                                class="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-xl">← Назад к загрузке</button>
+                    </div>
+                    <span id="task-count" class="text-sm text-gray-500"></span>
+                </div>
+                <div id="task-list" class="space-y-3"></div>
+            </div>
+
+            <!-- Рабочее место -->
+            <div id="workspace" class="hidden">
+                <div class="grid grid-cols-12 gap-6">
+                    
+                    <!-- Waveform -->
+                    <div class="col-span-12 lg:col-span-8 bg-white p-6 rounded-3xl shadow">
+                        <div class="flex justify-between mb-4">
+                            <h3 class="font-semibold">Waveform</h3>
+                            <div id="audio-info" class="text-sm text-gray-500"></div>
+                        </div>
+                        <div id="waveform" class="wavesurfer-container rounded-2xl"></div>
+                        
+                        <div class="flex gap-4 mt-4 items-center flex-wrap">
+                            <button onclick="wavesurfer?.playPause()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-medium">▶ Плей / Пауза</button>
+                            <button onclick="playCurrentSegment()" class="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-2xl text-sm font-medium">▶ Сегмент</button>
+                            <button onclick="createNewSegment()" 
+                                    class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-sm font-medium flex items-center gap-2">
+                                <span>+</span> Новый сегмент
+                            </button>
+                            <div class="flex-1 flex items-center gap-3 min-w-[200px]">
+                                <span class="text-xs text-gray-500 w-8">Зум</span>
+                                <input type="range" id="zoom-slider" min="20" max="400" value="100" oninput="changeZoom(this.value)" class="flex-1 accent-blue-600">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Список сегментов -->
+                    <div class="col-span-12 lg:col-span-4 bg-white p-6 rounded-3xl shadow overflow-auto max-h-[620px]">
+                        <h3 class="font-semibold mb-4">Сегменты</h3>
+                        <div id="segments-list" class="space-y-3"></div>
+                    </div>
+
+                    <!-- Редактор текста -->
+                    <div class="col-span-12 bg-white p-6 rounded-3xl shadow">
+                        <h3 class="font-semibold mb-2">Текст активного сегмента</h3>
+                        <textarea id="text-editor" rows="3" class="w-full border rounded-2xl p-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" oninput="updateCurrentSegmentText()"></textarea>
+                    </div>
+
+                    <!-- Панель замечаний -->
+                    <div class="col-span-12 bg-white p-6 rounded-3xl shadow mt-4">
+                        <h3 class="font-semibold mb-3">Замечания верификатора</h3>
+                        <div id="comments-panel" class="bg-gray-50 p-4 rounded-2xl min-h-[80px] text-sm text-gray-700">
+                            Пока нет замечаний
+                        </div>
+                    </div>
+
+                    <!-- Кнопки действий -->
+                    <div class="col-span-12" id="action-buttons">
+                        <div class="flex gap-4">
+                            <button onclick="saveCurrentTask(false)" id="save-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-3xl font-medium transition-all">
+                                💾 Сохранить изменения
+                            </button>
+                            <button onclick="showChecklist()" id="submit-btn" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-4 rounded-3xl font-medium transition-all">
+                                ✅ Отправить на проверку
+                            </button>
+                            <button onclick="exportJson()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-4 rounded-3xl font-medium transition-all">
+                                📤 Экспорт JSON
+                            </button>
+                        </div>
+                        
+                        <div id="verifier-actions" class="hidden mt-4 grid grid-cols-2 gap-4">
+                            <button onclick="acceptTask()" class="py-4 bg-green-600 hover:bg-green-700 text-white text-lg font-semibold rounded-3xl">✅ Принять задачу</button>
+                            <button onclick="returnTask()" class="py-4 bg-red-600 hover:bg-red-700 text-white text-lg font-semibold rounded-3xl">↩️ Вернуть на доработку</button>
+                        </div>
+                    </div>
+
+                    <!-- Audit Log -->
+                    <div class="col-span-12 bg-white p-6 rounded-3xl shadow mt-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-semibold">Журнал действий (Audit Log)</h3>
+                            <button onclick="clearAuditLog()" class="text-xs text-gray-500 hover:text-red-500">Очистить</button>
+                        </div>
+                        <div id="audit-log" class="audit-log bg-gray-900 text-green-400 p-4 rounded-2xl h-40 overflow-auto text-xs"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Чек-лист модалка -->
+    <div id="checklist-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div class="bg-white p-8 rounded-3xl max-w-lg w-full mx-4">
+            <h3 class="text-2xl font-bold mb-6">Чек-лист перед отправкой</h3>
+            <div id="checklist-items" class="space-y-4 mb-8"></div>
+            <div class="flex gap-4">
+                <button onclick="hideChecklist()" class="flex-1 py-3 border border-gray-300 rounded-2xl hover:bg-gray-50">Отмена</button>
+                <button onclick="submitForReview()" id="submit-checklist-btn" class="flex-1 py-3 bg-green-600 text-white rounded-2xl font-medium disabled:bg-gray-300 transition-all">Отправить на проверку</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRole = null;
+        let currentTaskId = null;
+        let wavesurfer = null;
+        let regionsPlugin = null;
+        let currentSegments = [];
+        let activeSegmentId = null;
+        let tasks = [];
+        let saveTimeout = null;
+        let periodicSaveInterval = null;
+        let currentAudioFile = null;
+        let currentJsonFile = null;
+        let currentAudioURL = null;
+        let auditLogs = [];
+        let taskCommentsMap = {}; // ключ — taskId, значение — массив комментариев
+        let currentWavesurferInstance = null;
+
+        function addAuditLog(action, details = '') {
+            const timestamp = new Date().toLocaleTimeString('ru-RU');
+            const logEntry = `[${timestamp}] ${action} ${details}`;
+            auditLogs.unshift(logEntry);
+            if (auditLogs.length > 30) auditLogs.pop();
+            renderAuditLog();
+            console.log('%c[AUDIT]', 'color:#22c55e', logEntry);
+        }
+
+        function renderAuditLog() {
+            const container = document.getElementById('audit-log');
+            if (!container) return;
+            container.innerHTML = auditLogs.map(log => `<div class="py-0.5">${log}</div>`).join('');
+            container.scrollTop = 0;
+        }
+
+        function clearAuditLog() {
+            auditLogs = [];
+            renderAuditLog();
+        }
+
+        function showUploadSection() {
+            document.getElementById('task-list-section').classList.add('hidden');
+            document.getElementById('workspace').classList.add('hidden');
+            document.getElementById('upload-section').classList.remove('hidden');
+        }
+
+        function handleFileSelect(type) {
+            const input = document.getElementById(type + '-input');
+            const selectedDiv = document.getElementById(type + '-selected');
+            const filenameSpan = document.getElementById(type + '-filename');
+            const dropzone = document.getElementById(type + '-dropzone');
+
+            if (input.files.length > 0) {
+                const file = input.files[0];
+                if (type === 'audio') currentAudioFile = file;
+                else currentJsonFile = file;
+                filenameSpan.textContent = file.name.length > 28 ? file.name.substring(0, 25) + '...' : file.name;
+                selectedDiv.classList.remove('hidden');
+                dropzone.classList.add('border-green-400', 'bg-green-50/30');
+            }
+        }
+
+        function clearFileSelection(type) {
+            const input = document.getElementById(type + '-input');
+            const selectedDiv = document.getElementById(type + '-selected');
+            const dropzone = document.getElementById(type + '-dropzone');
+            input.value = '';
+            selectedDiv.classList.add('hidden');
+            dropzone.classList.remove('border-green-400', 'bg-green-50/30');
+            if (type === 'audio') currentAudioFile = null;
+            else currentJsonFile = null;
+        }
+
+        function setupDragAndDrop() {
+            ['audio', 'json'].forEach(type => {
+                const dropzone = document.getElementById(type + '-dropzone');
+                const input = document.getElementById(type + '-input');
+                if (!dropzone) return;
+                dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+                dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+                dropzone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    dropzone.classList.remove('dragover');
+                    const file = e.dataTransfer.files[0];
+                    if (!file) return;
+                    const isAudio = type === 'audio' && file.type.startsWith('audio/');
+                    const isJson = type === 'json' && file.name.toLowerCase().endsWith('.json');
+                    if ((type === 'audio' && isAudio) || (type === 'json' && isJson)) {
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        input.files = dt.files;
+                        handleFileSelect(type);
+                    } else {
+                        alert(type === 'audio' ? 'Перетащите аудиофайл' : 'Перетащите JSON файл');
+                    }
+                });
+            });
+        }
+
+        function disableEditingForVerifier() {
+            const textEditor = document.getElementById('text-editor');
+            if (textEditor) textEditor.disabled = true;
+
+            document.querySelectorAll('.start-input, .end-input').forEach(el => {
+                if (el) el.disabled = true;
+            });
+
+            const saveBtn = document.getElementById('save-btn');
+            const submitBtn = document.getElementById('submit-btn');
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (submitBtn) submitBtn.style.display = 'none';
+
+            const verifierActions = document.getElementById('verifier-actions');
+            if (verifierActions) verifierActions.classList.remove('hidden');
+        }
+
+        function enableEditingForAnnotator() {
+            const textEditor = document.getElementById('text-editor');
+            if (textEditor) textEditor.disabled = false;
+
+            document.querySelectorAll('.start-input, .end-input').forEach(el => {
+                if (el) el.disabled = false;
+            });
+
+            const saveBtn = document.getElementById('save-btn');
+            const submitBtn = document.getElementById('submit-btn');
+            if (saveBtn) saveBtn.style.display = 'block';
+            if (submitBtn) submitBtn.style.display = 'block';
+
+            const verifierActions = document.getElementById('verifier-actions');
+            if (verifierActions) verifierActions.classList.add('hidden');
+        }
+
+        async function uploadFiles() {
+            if (!authToken) {
+                alert("Сначала войдите в систему!");
+                return;
+            }
+            if (!currentAudioFile || !currentJsonFile) {
+                alert("Выберите аудио и JSON");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', currentAudioFile);
+
+            try {
+                showSaveStatus("Загрузка аудио...");
+
+                // 1. Загружаем аудио
+                const uploadRes = await fetch('http://127.0.0.1:8000/api/upload-audio', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` },
+                    body: formData
+                });
+                if (!uploadRes.ok) throw new Error('Ошибка загрузки аудио');
+                const uploadResult = await uploadRes.json();
+
+                // 2. Создаём задачу
+                const taskResult = await apiRequest('http://127.0.0.1:8000/api/tasks', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        project_id: 1,
+                        filename: currentAudioFile.name
+                    })
+                });
+
+                currentTaskId = taskResult.id;
+
+                showSaveStatus("✅ Задача создана на сервере");
+
+                // 3. Сохраняем аудио в localStorage (для waveform)
+                if (currentAudioURL) URL.revokeObjectURL(currentAudioURL);
+                currentAudioURL = URL.createObjectURL(currentAudioFile);
+
+                const reader = new FileReader();
+                reader.onload = e => localStorage.setItem('gecko_current_audio_base64', e.target.result);
+                reader.readAsDataURL(currentAudioFile);
+
+                // 4. Парсим JSON и создаём сегменты
+                const jsonText = await currentJsonFile.text();
+                let parsed = JSON.parse(jsonText);
+                let segs = parsed.segments || parsed.transcript || parsed.data || parsed;
+
+                currentSegments = segs.map((s, i) => ({
+                    id: `seg_${Date.now()}_${i}`,
+                    start: parseFloat(s.start || s.begin || s.start_time || 0),
+                    end: parseFloat(s.end || s.finish || s.end_time || 5),
+                    text: s.text || s.transcript || s.content || ''
+                })).filter(s => !isNaN(s.start) && !isNaN(s.end) && s.end > s.start);
+
+                if (currentSegments.length === 0) {
+                    alert("В JSON нет валидных сегментов");
+                    return;
+                }
+
+                // Сохраняем сегменты на сервер
+                await saveSegmentsToServer();
+
+                // Обновляем localStorage как кэш
+                localStorage.setItem(`gecko_segments_${currentTaskId}`, JSON.stringify(currentSegments));
+
+                // Добавляем задачу в список
+                tasks.push({
+                    id: currentTaskId,
+                    filename: currentAudioFile.name,
+                    status: "В работе"
+                });
+                saveAllToStorage();
+
+                // Переключаем интерфейс
+                document.getElementById('upload-section').classList.add('hidden');
+                document.getElementById('workspace').classList.remove('hidden');
+
+                document.getElementById('audio-info').textContent = 
+                    `${currentAudioFile.name} • ${currentSegments.length} сегментов`;
+
+                // Инициализируем waveform
+                initWaveSurfer(currentAudioURL);
+                renderSegmentsList();
+                startPeriodicSave();
+
+                if (currentSegments.length > 0) selectSegment(currentSegments[0].id);
+
+                addAuditLog('Задача загружена + сегменты сохранены', currentTaskId);
+
+            } catch (e) {
+                console.error(e);
+                alert("Ошибка загрузки: " + e.message);
+            }
+        }
+
+        function saveAllToStorage() {
+            try {
+                localStorage.setItem('gecko_tasks', JSON.stringify(tasks));
+
+                if (currentTaskId && currentSegments.length > 0) {
+                    // Сохраняем сегменты именно под ID этой задачи
+                    localStorage.setItem(`gecko_segments_${currentTaskId}`, JSON.stringify(currentSegments));
+                    
+                    // Старый общий ключ оставляем только для "последней открытой" (опционально)
+                    localStorage.setItem('gecko_current_task', JSON.stringify({
+                        taskId: currentTaskId,
+                        segments: currentSegments
+                    }));
+                }
+            } catch(e){}
+        }
+
+        function loadAllFromStorage() {
+            try {
+                const savedTasks = localStorage.getItem('gecko_tasks');
+                if (savedTasks) tasks = JSON.parse(savedTasks);
+
+                const current = localStorage.getItem('gecko_current_task');
+                if (current) {
+                    const data = JSON.parse(current);
+                    currentTaskId = data.taskId;
+                    currentSegments = data.segments || [];
+                }
+            } catch(e){}
+        }
+
+        function loadRegionsFromSegments() {
+            if (!regionsPlugin) return;
+
+            // Полная очистка
+            regionsPlugin.clearRegions();
+
+            // Защита от дублей в массиве
+            const uniqueSegments = [];
+            const seenIds = new Set();
+
+            currentSegments.forEach(seg => {
+                if (seenIds.has(seg.id)) return; // пропускаем дубли
+                seenIds.add(seg.id);
+
+                if (isNaN(seg.start) || isNaN(seg.end) || seg.end <= seg.start) return;
+
+                uniqueSegments.push(seg);
+
+                regionsPlugin.addRegion({
+                    id: seg.id,
+                    start: seg.start,
+                    end: seg.end,
+                    color: 'rgba(59, 130, 246, 0.35)',
+                    drag: true,
+                    resize: true
+                });
+            });
+
+            // Обновляем массив без дублей
+            currentSegments = uniqueSegments;
+
+            console.log(`Загружено ${currentSegments.length} уникальных сегментов`);
+        }
+
+        function changeZoom(value) {
+            if (!wavesurfer) return;
+
+            wavesurfer.setOptions({ minPxPerSec: parseInt(value) });
+
+            // ← Ключевой фикс: принудительно перерисовываем регионы после зума
+            setTimeout(() => {
+                if (regionsPlugin) {
+                    regionsPlugin.clearRegions();        // очищаем старые
+                    loadRegionsFromSegments();           // заново добавляем все
+                }
+            }, 50); // небольшая задержка, чтобы waveform успел пересчитать масштаб
+        }
+
+        function renderSegmentsList() {
+            const container = document.getElementById('segments-list');
+            container.innerHTML = '';
+
+            currentSegments.forEach(seg => {
+                // Защита от NaN
+                const safeStart = isNaN(seg.start) ? 0 : parseFloat(seg.start);
+                const safeEnd   = isNaN(seg.end)   ? 0 : parseFloat(seg.end);
+
+                const div = document.createElement('div');
+                div.className = `segment-card p-4 border rounded-2xl cursor-pointer ${seg.id === activeSegmentId ? 'active border-blue-500 bg-blue-50' : 'border-gray-200'}`;
+                
+                div.innerHTML = `
+                    <div class="flex gap-3 mb-3">
+                        <div>
+                            <div class="text-xs text-gray-500">Start</div>
+                            <input type="number" step="0.01" 
+                                value="${safeStart.toFixed(2)}" 
+                                class="w-20 border rounded-xl px-2 py-1 text-sm start-input">
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">End</div>
+                            <input type="number" step="0.01" 
+                                value="${safeEnd.toFixed(2)}" 
+                                class="w-20 border rounded-xl px-2 py-1 text-sm end-input">
+                        </div>
+                    </div>
+                    <div class="text-sm mb-3">${seg.text || '<span class="italic text-gray-400">(пустой)</span>'}</div>
+                    
+                    <!-- Кнопка удаления -->
+                    <button onclick="deleteSegment('${seg.id}'); event.stopImmediatePropagation()" 
+                            class="text-red-600 hover:text-red-700 text-sm font-medium flex items-center gap-1">
+                        🗑 Удалить сегмент
+                    </button>
+                `;
+
+                div.onclick = (e) => {
+                    if (!e.target.classList.contains('start-input') && !e.target.classList.contains('end-input')) {
+                        selectSegment(seg.id);
+                    }
+        };
+
+        const startInput = div.querySelector('.start-input');
+        const endInput   = div.querySelector('.end-input');
+
+        startInput.onchange = () => {
+            seg.start = parseFloat(startInput.value);
+            if (isNaN(seg.start)) seg.start = 0;
+            updateRegionOnWaveform(seg.id);
+            debounceSave();
+            renderSegmentsList(); // перерисовываем чтобы обновить value
+            addAuditLog('Изменена граница Start', seg.id);
+        };
+
+        endInput.onchange = () => {
+            seg.end = parseFloat(endInput.value);
+            if (isNaN(seg.end)) seg.end = 0;
+            updateRegionOnWaveform(seg.id);
+            debounceSave();
+            renderSegmentsList();
+            addAuditLog('Изменена граница End', seg.id);
+        };
+
+            container.appendChild(div);
+        });
+    }
+
+        function updateRegionOnWaveform(segmentId) {
+            if (!regionsPlugin) return;
+            const region = regionsPlugin.getRegions().find(r => r.id === segmentId);
+            if (region) {
+                const seg = currentSegments.find(s => s.id === segmentId);
+                if (seg) {
+                    region.setOptions({
+                        start: isNaN(seg.start) ? 0 : seg.start,
+                        end: isNaN(seg.end) ? 0 : seg.end
+                    });
+                }
+            }
+        }
+
+        function selectSegment(id) {
+            activeSegmentId = id;
+            renderSegmentsList();
+            const seg = currentSegments.find(s => s.id === id);
+            if (seg) document.getElementById('text-editor').value = seg.text || '';
+        }
+
+        function updateCurrentSegmentText() {
+            if (!activeSegmentId) return;
+
+            const seg = currentSegments.find(s => s.id === activeSegmentId);
+            if (!seg) return;
+
+            const textarea = document.getElementById('text-editor');
+            seg.text = textarea.value;
+
+            // Сохраняем на сервер с небольшой задержкой
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                saveSegmentsToServer();
+            }, 800);
+        }
+
+        function debounceSave() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => saveCurrentTask(true), 900);
+        }
+
+        async function saveCurrentTask(silent = true) {
+            if (!currentTaskId) return;
+            saveAllToStorage();
+            if (!silent) {
+                showSaveStatus("✅ Изменения сохранены");
+                addAuditLog('Ручное сохранение', currentTaskId);
+            }
+        }
+
+        function startPeriodicSave() {
+            if (periodicSaveInterval) clearInterval(periodicSaveInterval);
+            periodicSaveInterval = setInterval(() => {
+                if (currentTaskId && currentSegments.length > 0) {
+                    saveCurrentTask(true);
+                }
+            }, 5000);
+        }
+
+        function showSaveStatus(text) {
+            const el = document.getElementById('save-status');
+            el.textContent = text;
+            el.style.opacity = '1';
+            setTimeout(() => {
+                el.style.transition = 'opacity 0.4s';
+                el.style.opacity = '0';
+                setTimeout(() => { el.textContent = ''; el.style.transition = ''; }, 400);
+            }, 1600);
+        }
+
+        function showChecklist() {
+            const items = ["Запись полностью прослушана", "Все границы сегментов проверены", "Текст исправлен", "Кросстолки обработаны", "Технические термины проверены", "Нет пустых сегментов"];
+            let html = '';
+            items.forEach((item, i) => { html += `<label class="flex gap-3"><input type="checkbox" id="check-${i}" class="mt-1"> <span>${item}</span></label>`; });
+            document.getElementById('checklist-items').innerHTML = html;
+            document.getElementById('checklist-modal').classList.remove('hidden');
+            document.querySelectorAll('#checklist-items input').forEach(cb => cb.onchange = checkAllChecked);
+            checkAllChecked();
+        }
+
+        function hideChecklist() { document.getElementById('checklist-modal').classList.add('hidden'); }
+
+        function checkAllChecked() {
+            const all = Array.from(document.querySelectorAll('#checklist-items input')).every(c => c.checked);
+            document.getElementById('submit-checklist-btn').disabled = !all;
+        }
+
+        async function submitForReview() {
+            hideChecklist();
+            
+            try {
+                await apiRequest(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status: "На проверке" })
+                });
+                
+                const task = tasks.find(t => t.id === currentTaskId);
+                if (task) task.status = "На проверке";
+                
+                saveAllToStorage();
+                showSaveStatus("✅ Отправлено на проверку");
+                addAuditLog('Задача отправлена на проверку', currentTaskId);
+                
+                showTaskList();   // возвращаемся в список
+            } catch(e) {
+                console.error(e);
+                alert("Ошибка отправки на проверку: " + e.message);
+            }
+        }
+
+        async function acceptTask() {
+            try {
+                await apiRequest(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status: "Принята" })
+                });
+
+                const task = tasks.find(t => t.id === currentTaskId);
+                if (task) task.status = "Принята";
+
+                saveAllToStorage();
+                alert("Задача принята!");
+                addAuditLog('Задача принята', currentTaskId);
+                showTaskList();   // обновляем список
+            } catch(e) {
+                alert("Ошибка принятия задачи");
+            }
+        }
+
+        async function returnTask() {
+            const commentText = prompt("Введите замечания:");
+            if (!commentText) return;
+
+            try {
+                // Отправляем комментарий на сервер
+                await apiRequest(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/comments`, {
+                    method: 'POST',
+                    body: JSON.stringify({ text: commentText })
+                });
+
+                // Обновляем статус
+                await apiRequest(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status: "На доработке" })
+                });
+
+                const task = tasks.find(t => t.id === currentTaskId);
+                if (task) task.status = "На доработке";
+
+                saveAllToStorage();
+                alert("Задача возвращена на доработку");
+                addAuditLog('Задача возвращена', commentText);
+
+                // Перезагружаем комментарии с сервера
+                await loadCommentsFromServer();
+                showTaskList();
+            } catch(e) {
+                alert("Ошибка возврата задачи: " + e.message);
+            }
+        }
+
+        async function loadCommentsFromServer() {
+            try {
+                const comments = await apiRequest(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/comments`);
+                const panel = document.getElementById('comments-panel');
+                panel.innerHTML = 'Загрузка комментариев...';
+                
+                if (!comments || comments.length === 0) {
+                    panel.innerHTML = '<span class="text-gray-500">Пока нет замечаний от верификатора</span>';
+                    return;
+                }
+
+                let html = '';
+                comments.forEach(c => {
+                    const date = new Date(c.created_at).toLocaleString('ru-RU');
+                    html += `
+                        <div class="mb-3 p-3 bg-white border rounded-xl">
+                            <div class="flex justify-between text-xs text-gray-500 mb-1">
+                                <span><strong>${c.author}</strong></span>
+                                <span>${date}</span>
+                            </div>
+                            <div>${c.text}</div>
+                        </div>
+                    `;
+                });
+                panel.innerHTML = html;
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        function showComments() {
+            loadCommentsFromServer();   // теперь всегда грузим с сервера
+        }
+
+        async function showTaskList() {
+            clearWorkspace();
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('workspace').classList.add('hidden');
+            document.getElementById('task-list-section').classList.remove('hidden');
+
+            try {
+                let url = 'http://127.0.0.1:8000/api/tasks';
+                
+                // Если верификатор — просим только задачи на проверке
+                if (currentRole === 'verifier') {
+                    url += '?status=На проверке'; // ← если бэкенд поддерживает фильтр
+                }
+
+                const tasksData = await apiRequest(url);
+                renderTaskListFromServer(tasksData || []);
+            } catch(e) {
+                console.error(e);
+                document.getElementById('task-list').innerHTML = 
+                    '<p class="text-red-500 p-4">Ошибка загрузки задач с сервера</p>';
+            }
+        }
+
+        function renderTaskListFromServer(serverTasks) {
+            const container = document.getElementById('task-list');
+            container.innerHTML = '';
+            document.getElementById('task-count').textContent = `Задач: ${serverTasks.length}`;
+
+            if (serverTasks.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 p-4">Задач пока нет</p>';
+                return;
+            }
+
+            serverTasks.forEach(task => {
+                const div = document.createElement('div');
+                div.className = 'task-card p-4 border rounded-2xl flex justify-between items-center bg-white';
+                div.innerHTML = `
+                    <div>
+                        <div class="font-medium">${task.filename || 'Без названия'}</div>
+                        <div class="text-xs mt-1">
+                            <span class="px-2.5 py-0.5 rounded-full text-xs bg-green-100 text-green-700">${task.status || 'В работе'}</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openTaskFromServer(${task.id}); event.stopImmediatePropagation();" 
+                                class="px-5 py-2 bg-blue-600 text-white text-sm rounded-xl">Открыть</button>
+                        <button onclick="deleteTask(${task.id}); event.stopImmediatePropagation();" 
+                                class="px-4 py-2 bg-red-100 text-red-600 text-sm rounded-xl hover:bg-red-200">Удалить</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function openTaskFromServer(taskId) {
+            clearWorkspace();
+            try {
+                console.log('%c[DEBUG] openTaskFromServer started for task', 'color:orange', taskId);
+
+                // === ПОЛНЫЙ ЖЁСТКИЙ СБРОС ===
+                currentSegments = [];
+                activeSegmentId = null;
+
+                if (wavesurfer) {
+                    try { 
+                        wavesurfer.pause(); 
+                        wavesurfer.unAll(); 
+                        wavesurfer.destroy(); 
+                    } catch(e) {}
+                    wavesurfer = null;
+                    regionsPlugin = null;
+                }
+
+                const task = await apiRequest(`http://127.0.0.1:8000/api/tasks/${taskId}`);
+                let segmentsData = await apiRequest(`http://127.0.0.1:8000/api/tasks/${taskId}/segments`);
+
+                // Fallback только если сервер ничего не дал
+                if (!segmentsData || segmentsData.length === 0) {
+                    console.warn('Сервер вернул 0 сегментов — fallback на localStorage');
+                    const saved = localStorage.getItem(`gecko_segments_${taskId}`);
+                    if (saved) segmentsData = JSON.parse(saved);
+                } else {
+                    localStorage.setItem(`gecko_segments_${taskId}`, JSON.stringify(segmentsData));
+                }
+
+                // === ЗАМЕНА массива (не добавление!) ===
+                currentSegments = (segmentsData || []).map(s => {
+                    const start = s.start ?? s.start_time ?? s.startTime;
+                    const end = s.end ?? s.end_time ?? s.endTime;
+
+                    return {
+                        id: s.id ? `seg_${s.id}` : `seg_${Date.now()}_${Math.random()}`,
+                        start: parseFloat(start) || 0,
+                        end: parseFloat(end) || 0,
+                        text: s.text || '',
+                        speaker: s.speaker ?? s.speaker_id ?? null
+                    };
+                });
+
+                console.log('%c[DEBUG] currentSegments after load:', 'color:lime', currentSegments.length);
+
+                // Переключение интерфейса
+                document.getElementById('task-list-section').classList.add('hidden');
+                document.getElementById('workspace').classList.remove('hidden');
+                currentTaskId = taskId;
+
+                document.getElementById('audio-info').textContent = 
+                    `Задача #${taskId} • ${currentSegments.length} сегментов`;
+
+                // === НОВАЯ ЧИСТАЯ ИНИЦИАЛИЗАЦИЯ ===
+                const base64Audio = localStorage.getItem('gecko_current_audio_base64');
+                initWaveSurfer(base64Audio);
+
+                // Ждём ready и загружаем регионы (теперь с clearRegions внутри)
+                // (ready уже вызывает loadRegionsFromSegments в initWaveSurfer)
+
+                document.getElementById('comments-panel').innerHTML = 'Загрузка...';
+                await loadCommentsFromServer();
+
+                renderSegmentsList();
+                startPeriodicSave();
+
+                if (currentSegments.length > 0) {
+                    selectSegment(currentSegments[0].id);
+                }
+
+                addAuditLog('Задача открыта', taskId);
+
+                // После renderSegmentsList() и selectSegment добавь:
+                if (currentRole === 'verifier') {
+                    disableEditingForVerifier();
+                } else {
+                    enableEditingForAnnotator();
+                }
+
+            } catch (e) {
+                console.error(e);
+                alert("Ошибка открытия задачи: " + e.message);
+            }
+        }
+
+        async function saveSegmentsToServer() {
+            if (!currentTaskId || currentSegments.length === 0) return;
+
+            try {
+                const payload = {
+                    segments: currentSegments.map(seg => ({
+                        start: isNaN(seg.start) ? 0 : parseFloat(seg.start),
+                        end:   isNaN(seg.end)   ? 0 : parseFloat(seg.end),
+                        text: seg.text || '',
+                        speaker_id: seg.speaker || null
+                    }))
+                };
+
+                const res = await fetch(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/segments`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error("Ошибка 422:", errorText);
+                    showSaveStatus("⚠️ Ошибка сохранения (422)", true);
+                    return;
+                }
+
+                localStorage.setItem(`gecko_segments_${currentTaskId}`, JSON.stringify(currentSegments));
+                showSaveStatus("✅ Сохранено на сервер");
+
+            } catch (e) {
+                console.error(e);
+                showSaveStatus("⚠️ Ошибка сети", true);
+            }
+        }
+
+        function showWorkspace() {
+            document.getElementById('task-list-section').classList.add('hidden');
+            document.getElementById('workspace').classList.remove('hidden');
+        }
+
+        async function deleteTask(taskId) {
+            if (!confirm("Удалить эту задачу?")) return;
+
+            try {
+                await fetch(`http://127.0.0.1:8000/api/tasks/${taskId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                // Обновляем список с сервера
+                await showTaskList();
+                addAuditLog('Задача удалена', taskId);
+
+            } catch(e) {
+                alert("Ошибка удаления задачи");
+            }
+        }
+
+        function createNewSegment() {
+            if (!wavesurfer) {
+                alert("Сначала загрузите аудио");
+                return;
+            }
+
+            const currentTime = wavesurfer.getCurrentTime();
+            
+            // Создаём новый сегмент длительностью 3 секунды по умолчанию
+            const newSegment = {
+                id: `seg_${Date.now()}`,
+                start: currentTime,
+                end: Math.min(currentTime + 3, wavesurfer.getDuration()),
+                text: ''  // пустой текст — пользователь заполнит
+            };
+
+            // Добавляем в массив
+            currentSegments.push(newSegment);
+            
+            // Добавляем регион на waveform
+            if (regionsPlugin) {
+                regionsPlugin.addRegion({
+                    id: newSegment.id,
+                    start: newSegment.start,
+                    end: newSegment.end,
+                    color: 'rgba(99, 102, 241, 0.35)', // indigo
+                    drag: true,
+                    resize: true
+                });
+            }
+
+            // Перерисовываем список и выбираем новый сегмент
+            renderSegmentsList();
+            selectSegment(newSegment.id);
+
+            // Автосохранение
+            debounceSave();
+
+            addAuditLog('Создан новый сегмент', `время ${currentTime.toFixed(2)}s`);
+            
+            // Подсказка пользователю
+            showSaveStatus("✅ Новый сегмент создан в текущей позиции");
+        }
+
+        function deleteSegment(segmentId) {
+            if (!confirm("Удалить этот сегмент? Действие нельзя отменить.")) {
+                return;
+            }
+
+            // Удаляем из массива
+            currentSegments = currentSegments.filter(s => s.id !== segmentId);
+
+            // Удаляем регион с waveform
+            if (regionsPlugin) {
+                const region = regionsPlugin.getRegions().find(r => r.id === segmentId);
+                if (region) region.remove();
+            }
+
+            // Если удалён активный сегмент — сбрасываем
+            if (activeSegmentId === segmentId) {
+                activeSegmentId = null;
+                document.getElementById('text-editor').value = '';
+            }
+
+            // Перерисовываем список
+            renderSegmentsList();
+
+            // Сохраняем изменения
+            debounceSave();
+
+            addAuditLog('Удалён сегмент', segmentId);
+            showSaveStatus("✅ Сегмент удалён");
+        }
+
+        function playCurrentSegment() {
+            if (!activeSegmentId || !regionsPlugin || !wavesurfer) {
+                alert("Выберите сегмент");
+                return;
+            }
+
+            // Берём регион, чтобы получить точные границы
+            const region = regionsPlugin.getRegions().find(r => r.id === activeSegmentId);
+            if (!region) {
+                alert("Регион не найден");
+                return;
+            }
+
+            wavesurfer.play(region.start, region.end);
+        }
+
+        function exportJson() {
+            if (!currentTaskId) return;
+            const dataStr = JSON.stringify(currentSegments, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', 'gecko_export.json');
+            linkElement.click();
+            addAuditLog('Экспорт JSON', currentTaskId);
+        }
+
+        function logout() {
+            clearWorkspace();
+            
+            if (periodicSaveInterval) clearInterval(periodicSaveInterval);
+            if (saveTimeout) clearTimeout(saveTimeout);
+
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('username');
+            localStorage.removeItem('gecko_current_task');
+
+            authToken = null;
+            currentRole = null;
+            currentTaskId = null;
+            currentSegments = [];
+            activeSegmentId = null;
+            wavesurfer = null;
+            regionsPlugin = null;
+
+            // Скрываем приложение и показываем логин
+            document.getElementById('main-content').classList.add('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+            
+            // ← ВАЖНО: возвращаем кнопку регистрации
+            showRegisterButton();
+
+            document.getElementById('current-role').textContent = 'Не выбрана';
+
+            addAuditLog('Выход из аккаунта');
+        }
+
+        let authToken = null;
+        let currentUser = null;
+
+        async function login() {
+            hideRegisterButton();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const errorEl = document.getElementById('login-error');
+
+            errorEl.classList.add('hidden');
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ username, password })
+                });
+
+                if (!response.ok) throw new Error('Неверный логин или пароль');
+
+                const data = await response.json();
+                authToken = data.access_token;
+                
+                localStorage.setItem('authToken', authToken);
+                localStorage.setItem('username', username);
+
+                // Скрываем логин
+                document.getElementById('login-section').classList.add('hidden');
+
+                // Показываем главный контейнер, НО секции задач/загрузки пока скрыты
+                document.getElementById('main-content').classList.remove('hidden');
+
+                showSaveStatus("✅ Вход выполнен");
+                hideRegisterButton();
+                addAuditLog('Успешный вход', username);
+
+                // === ПОЛУЧАЕМ РОЛЬ И ПРИМЕНЯЕМ (теперь интерфейс строится после роли) ===
+                try {
+                    const me = await apiRequest('http://127.0.0.1:8000/api/auth/me');
+                    currentRole = me.role || 'annotator';
+                    applyUserRole(currentRole);           // ← теперь applyUserRole сам решает, что показывать
+                } catch(e) {
+                    currentRole = 'annotator';
+                    applyUserRole(currentRole);
+                }
+
+                // Убираем эти строки (они больше не нужны, applyUserRole сам управляет):
+                // document.getElementById('task-list-section').classList.add('hidden');
+                // document.getElementById('workspace').classList.add('hidden');
+                // loadMyTasks();
+
+            } catch (e) {
+                errorEl.textContent = e.message;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        // Вспомогательная функция для запросов с токеном
+        async function apiRequest(url, options = {}) {
+            if (!authToken) {
+                alert("Сначала войдите в систему");
+                return null;
+            }
+
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`,
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    alert("Сессия истекла. Войдите заново.");
+                    logout();
+                }
+                throw new Error('Ошибка запроса');
+            }
+
+            return response.json();
+        }
+
+        function loadMyTasks() {
+            apiRequest('http://127.0.0.1:8000/api/tasks')
+                .then(tasks => {
+                    console.log("Мои задачи с сервера:", tasks);
+                })
+                .catch(console.error);
+        }
+
+        window.onload = async function initializeApp() {
+            setupDragAndDrop();
+
+            authToken = localStorage.getItem('authToken');
+
+            if (authToken) {
+                // Показываем загрузку (опционально — можно добавить спиннер)
+                await getAndApplyRole();
+            } else {
+                // Нет токена — показываем логин + кнопку регистрации
+                document.getElementById('login-section').classList.remove('hidden');
+                document.getElementById('main-content').classList.add('hidden');
+                showRegisterButton();
+            }
+        };
+
+    // ==================== ПОЛУЧЕНИЕ РОЛИ С СЕРВЕРА ====================
+    async function getAndApplyRole() {
+        const mainContent = document.getElementById('main-content');
+        const loginSection = document.getElementById('login-section');
+
+        try {
+            const me = await apiRequest('http://127.0.0.1:8000/api/auth/me');
+            currentRole = me.role || 'annotator';
+
+            // Успешно получили роль — показываем приложение
+            mainContent.classList.remove('hidden');
+            loginSection.classList.add('hidden');
+
+            applyUserRole(currentRole);
+
+        } catch (e) {
+            console.error('Не удалось получить роль / токен недействителен', e);
+
+            // === ВАЖНО: при ошибке полностью выходим ===
+            localStorage.removeItem('authToken');
+            authToken = null;
+            currentRole = null;
+
+            // Показываем только экран логина
+            mainContent.classList.add('hidden');
+            loginSection.classList.remove('hidden');
+
+            // Показываем кнопку регистрации заново
+            showRegisterButton();
+        }
+    }
+
+    // ==================== РЕГИСТРАЦИЯ ====================
+    function showRegisterModal() {
+        document.getElementById('register-modal').classList.remove('hidden');
+        document.getElementById('register-error').classList.add('hidden');
+    }
+
+    function hideRegisterModal() {
+        document.getElementById('register-modal').classList.add('hidden');
+    }
+
+    async function registerUser() {
+        const username = document.getElementById('reg-username').value.trim();
+        const password = document.getElementById('reg-password').value;
+        const role = document.getElementById('reg-role').value;
+        const errorEl = document.getElementById('register-error');
+
+        errorEl.classList.add('hidden');
+
+        if (!username || !password) {
+            errorEl.textContent = "Логин и пароль обязательны";
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const res = await fetch('http://127.0.0.1:8000/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Ошибка регистрации');
+            }
+
+            alert("Регистрация успешна! Теперь войдите под новым аккаунтом.");
+            hideRegisterModal();
+            
+            // Автозаполнение формы логина
+            document.getElementById('login-username').value = username;
+            document.getElementById('login-password').value = password;
+
+        } catch (e) {
+            errorEl.textContent = e.message;
+            errorEl.classList.remove('hidden');
+        }
+    } 
+
+    // ==================== ПРИМЕНЕНИЕ РОЛИ (УЛУЧШЕННАЯ ВЕРСИЯ) ====================
+    function applyUserRole(role) {
+        currentRole = role;
+        document.getElementById('current-role').textContent = 
+            role === 'verifier' ? 'Верификатор' : 'Разметчик';
+
+        const uploadSection   = document.getElementById('upload-section');
+        const taskListSection = document.getElementById('task-list-section');
+        const workspace       = document.getElementById('workspace');
+
+        // === Всегда начинаем с чистого листа ===
+        if (uploadSection)   uploadSection.style.display = 'none';
+        if (taskListSection) taskListSection.classList.add('hidden');
+        if (workspace)       workspace.classList.add('hidden');
+
+        clearWorkspace();
+
+        if (role === 'verifier') {
+            if (taskListSection) taskListSection.classList.remove('hidden');
+            disableEditingForVerifier();
+            showTaskList();
+        } else {
+            if (uploadSection) uploadSection.style.display = 'block';
+            enableEditingForAnnotator();
+        }
+    }
+
+    // ==================== ЕДИНАЯ ЧИСТАЯ ИНИЦИАЛИЗАЦИЯ WAVESURFER ====================
+    function initWaveSurfer(audioSource) {
+        // Уничтожаем предыдущий инстанс
+        if (wavesurfer) {
+            try {
+                wavesurfer.pause();
+                wavesurfer.unAll();
+                wavesurfer.destroy();
+            } catch (e) {}
+            wavesurfer = null;
+            regionsPlugin = null;
+        }
+
+        regionsPlugin = WaveSurfer.Regions.create();
+
+        wavesurfer = WaveSurfer.create({
+            container: '#waveform',
+            waveColor: '#3b82f6',
+            progressColor: '#1e40af',
+            height: 200,
+            barWidth: 2,
+            barGap: 1,
+            plugins: [regionsPlugin],
+        });
+
+        if (audioSource) {
+            wavesurfer.load(audioSource);
+        } else {
+            wavesurfer.empty();
+        }
+
+        // Готовность
+        wavesurfer.on('ready', () => {
+            console.log('%c[WaveSurfer] Готов', 'color:#22c55e');
+            loadRegionsFromSegments();
+            addAuditLog('Waveform загружен');
+        });
+
+        // Изменение регионов
+        regionsPlugin.on('region-updated', (region) => {
+            const seg = currentSegments.find(s => s.id === region.id);
+            if (seg) {
+                seg.start = region.start;
+                seg.end = region.end;
+                renderSegmentsList();
+                saveSegmentsToServer();           // или debounceSave()
+            }
+        });
+
+        regionsPlugin.on('region-clicked', (region) => {
+            selectSegment(region.id);
+        });
+
+        return wavesurfer;
+    } 
+
+    function clearWorkspace() {
+        // Останавливаем все таймеры
+        if (periodicSaveInterval) { clearInterval(periodicSaveInterval); periodicSaveInterval = null; }
+        if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+
+        // Уничтожаем WaveSurfer полностью
+        if (wavesurfer) {
+            try {
+                wavesurfer.pause();
+                wavesurfer.unAll();
+                wavesurfer.destroy();
+            } catch(e) {}
+            wavesurfer = null;
+            regionsPlugin = null;
+        }
+
+        currentSegments = [];
+        activeSegmentId = null;
+        currentTaskId = null;
+
+        // Очищаем DOM
+        const segmentsList = document.getElementById('segments-list');
+        const textEditor   = document.getElementById('text-editor');
+        const commentsPanel = document.getElementById('comments-panel');
+
+        if (segmentsList) segmentsList.innerHTML = '';
+        if (textEditor) textEditor.value = '';
+        if (commentsPanel) commentsPanel.innerHTML = 'Пока нет замечаний';
+
+        // Сбрасываем кнопки
+        const saveBtn = document.getElementById('save-btn');
+        const submitBtn = document.getElementById('submit-btn');
+        if (saveBtn) saveBtn.style.display = 'block';
+        if (submitBtn) submitBtn.style.display = 'block';
+    }
+
+     function showRegisterButton() {
+        const container = document.getElementById('register-link-container');
+        const btn = document.getElementById('register-btn');
+        if (container) container.style.display = 'block';
+        if (btn) btn.style.display = 'inline-block';
+    }
+
+    function hideRegisterButton() {
+        const container = document.getElementById('register-link-container');
+        const btn = document.getElementById('register-btn');
+        if (container) container.style.display = 'none';
+        if (btn) btn.style.display = 'none';
+    }
+
+    </script>
+</body>
+</html>
