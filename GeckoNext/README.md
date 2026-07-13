@@ -30,7 +30,7 @@ cd GeckoNext
 docker compose up --build 
 
 
-После запуска:
+**После запуска:**
 
 Backend: http://localhost:8000/docs
 Frontend: откройте файл frontend/index.html в браузере (или через Live Server)
@@ -42,16 +42,16 @@ docker compose up db
 
 **Backend:** 
 cd backend
-# Активируй окружение
+#Активируй окружение
 venv\Scripts\activate    # Windows
-# или source venv/bin/activate  # Linux/Mac
+#или source venv/bin/activate  # Linux/Mac
 
 uvicorn app.main:app --reload --port 8000
 
 **Frontend:**
 Откройте index.html в браузере или через Live Server (VS Code).
 
-###Стек технологий
+### Стек технологий
 
 **Frontend:**
 HTML5 + Tailwind CSS
