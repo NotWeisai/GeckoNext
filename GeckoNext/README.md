@@ -32,8 +32,8 @@ docker compose up --build
 
 **После запуска:**
 
-Backend: http://localhost:8000/docs
-Frontend: откройте файл frontend/index.html в браузере (или через Live Server)
+**Backend:** http://localhost:8000/docs
+**Frontend:** откройте файл frontend/index.html в браузере (или через Live Server)
 
 ### Вариант 2: Ручной запуск (для разработки)
 
@@ -42,9 +42,11 @@ docker compose up db
 
 **Backend:** 
 cd backend
-#Активируй окружение
-venv\Scripts\activate    # Windows
-#или source venv/bin/activate  # Linux/Mac
+**Активируй окружение**
+**Windows**
+venv\Scripts\activate
+**Linux/Mac**
+или source venv/bin/activate
 
 uvicorn app.main:app --reload --port 8000
 
