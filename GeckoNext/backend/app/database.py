@@ -8,7 +8,7 @@ load_dotenv()
 # === PostgreSQL ===
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://username:password@localhost:5432/gecko_db"  # поменяй на свои данные
+    "postgresql://username:password@localhost:5432/gecko_db" 
 )
 
 engine = create_engine(DATABASE_URL, echo=True)  # echo=True — для отладки
